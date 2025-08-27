@@ -1,0 +1,10 @@
+tempoMonolithic:
+  name: tempo
+  namespace: tempo
+  management: Managed
+  storage:
+    size: 1Gi
+  # Writer configuration, to allow writes of traces
+  writer:
+    serviceaccount: opentelemetry-collector-collector
+    namespace: opentelemetry

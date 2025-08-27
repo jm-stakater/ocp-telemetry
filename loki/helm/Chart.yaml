@@ -1,0 +1,6 @@
+apiVersion: v2
+name: rh-loki-instance
+description: A Helm Chart for a RedHat Loki instance
+type: application
+version: 0.2.5
+appVersion: "v6.2.2"

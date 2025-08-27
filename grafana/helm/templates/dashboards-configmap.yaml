@@ -1,0 +1,16 @@
+{{- if .Values.dashboards.enabled -}}
+{{- range $path, $_ :=  .Files.Glob  "json/dashboards/*.json" }}
+{{- $filename := (base $path) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "dashboards-%s-json" (trimSuffix ".json" $filename) }}
+  namespace: {{ include "grafana-instance.namespace" $ }}
+  labels:
+    {{- include "grafana-instance.labels" $ | nindent 4 }}
+data:
+  {{ $filename }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+---
+{{ end }}
+{{ end }}

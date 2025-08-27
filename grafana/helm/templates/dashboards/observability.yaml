@@ -1,0 +1,23 @@
+{{- if .Values.dashboards.enabled -}}
+{{- range $index, $tenant := .Values.tenants -}}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: {{ printf "dashboard-observability-%s" $tenant }}
+  namespace: {{ include "grafana-instance.namespace" $ }}
+  labels:
+    {{- include "grafana-instance.labels" $ | nindent 4 }}
+spec:
+  {{- include "grafana-instance.commonValues" $ | nindent 2 }}
+  configMapRef:
+    key: observability.json
+    name: dashboard-observability-json
+  datasources:
+    - datasourceName: {{ printf "loki-datasource-%s" $tenant }}
+      inputName: DS_LOKI
+    - datasourceName: {{ printf "tempo-datasource-%s" $tenant }}
+      inputName: DS_TEMPO
+  folderRef: opentelemetry-folder
+---
+{{ end }}
+{{ end }}

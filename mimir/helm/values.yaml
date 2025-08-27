@@ -1,0 +1,394 @@
+# Default values for mimir-instance.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+mimir:
+  global:
+    # -- Common environment variables to add to all pods directly managed by this chart.
+    # scope: admin-api, alertmanager, compactor, continuous-test, distributor, gateway, graphite-proxy, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen, federation-frontend
+    extraEnv: []
+
+    # -- Common source of environment injections to add to all pods directly managed by this chart.
+    # scope: admin-api, alertmanager, compactor, continuous-test, distributor, gateway, graphite-proxy, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen, federation-frontend
+    # For example to inject values from a Secret, use:
+    # extraEnvFrom:
+    #   - secretRef:
+    #       name: mysecret
+    extraEnvFrom:
+      - secretRef:
+          name: mimir-secret
+      - secretRef:
+          name: mimir-blocks-secret
+    # -- Definitions to set up nginx resolver
+    dnsService: dns-default
+    dnsNamespace: openshift-dns
+    #clusterDomain: cluster.local.
+
+    # -- Common volumes to add to all pods directly managed by this chart.
+    # scope: admin-api, alertmanager, compactor, continuous-test, distributor, gateway, graphite-proxy, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen, federation-frontend
+    extraVolumes:
+    - name: storage-tls
+      configMap:
+        name: openshift-service-ca.crt
+        defaultMode: 420
+
+    # -- Common mount points to add to all pods directly managed by this chart.
+    # scope: admin-api, alertmanager, compactor, continuous-test, distributor, gateway, graphite-proxy, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen, federation-frontend
+    extraVolumeMounts:
+    - name: storage-tls
+      mountPath: /etc/mimir/certs
+
+    # -- Pod annotations for all pods directly managed by this chart. Usable for example to associate a version to 'global.extraEnv' and 'global.extraEnvFrom' and trigger a restart of the affected services.
+    # scope: admin-api, alertmanager, compactor, distributor, gateway, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, tokengen, federation-frontend
+    podAnnotations: {}
+
+    # -- Pod labels for all pods directly managed by this chart.
+    # scope: admin-api, alertmanager, compactor, distributor, gateway, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, tokengen, federation-frontend
+    podLabels: {}
+
+  #server:
+  #  http_tls_config:
+  #    cert_file: /var/run/secrets/certs/tls.crt
+  #    key_file: /var/run/secrets/certs/tls.key
+  #    client_auth_type: RequireAndVerifyClientCert
+  #    client_ca_file: /var/run/secrets/certs/service-ca.crt
+  #
+  #  grpc_tls_config:
+  #    cert_file: /var/run/secrets/certs/tls.crt
+  #    key_file: /var/run/secrets/certs/tls.key
+  #    client_auth_type: RequireAndVerifyClientCert
+  #    client_ca_file: /var/run/secrets/certs/service-ca.crt
+
+  nginx:
+    service:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: mimir-nginx-tls
+    extraVolumes:
+    - name: certs
+      projected:
+        sources:
+          - configMap:
+              name: openshift-service-ca.crt
+          - secret:
+              name: mimir-nginx-tls
+        defaultMode: 420
+    extraVolumeMounts:
+    - name: certs
+      mountPath: /var/run/secrets/certs
+
+
+  #limits:
+  #  ruler_alertmanager_client_config:
+  #    tls_enabled: true
+  #    tls_ca_path: /var/run/secrets/certs/service-ca.crt
+
+  serviceAccount:
+    # -- Whether to create a service account or not.
+    # In case 'create' is false, do set 'name' to an existing service account name.
+    create: false
+    name: mimir-instance-sa
+    annotations: {}
+    labels: {}
+
+  tenant_federation:
+    enabled: true
+    max_concurrent: 16
+    max_tenants: 0
+
+  usage_stats:
+    enabled: false
+
+  rbac:
+    type: scc
+    podSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+      fsGroup: null
+
+  distributor:
+    #replicas: 1
+    podSecurityContext: null
+    containerSecurityContext: null
+    service:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: mimir-distributor-tls
+    otel_keep_identifying_resource_attributes: true
+    promote_otel_resource_attributes: "service.instance.id, service.name, service.namespace, service.version, cloud.availability_zone, cloud.region, container.name, deployment.environment, deployment.environment.name, k8s.cluster.name, k8s.container.name, k8s.cronjob.name, k8s.daemonset.name, k8s.deployment.name, k8s.job.name, k8s.namespace.name, k8s.pod.name, k8s.replicaset.name, k8s.statefulset.name"
+    resources:
+      requests:
+        # 1 core per every 25,000 samples per second
+        cpu: 2000m
+        # 1 GiB per every 25,000 samples per second
+        memory: 2Gi
+
+  ingester:
+    #replicas: 1
+    podSecurityContext: null
+    containerSecurityContext: null
+    service:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: mimir-ingester-tls
+    extraVolumes:
+    - name: certs
+      projected:
+        sources:
+          - configMap:
+              name: openshift-service-ca.crt
+          - secret:
+              name: mimir-query-frontend-tls
+        defaultMode: 420
+    extraVolumeMounts:
+    - name: certs
+      mountPath: /var/run/secrets/certs
+    #client:
+    #  tls_enabled: true
+    #  tls_ca_path: /var/run/secrets/certs/service-ca.crt
+    resources:
+      requests:
+        # 1 core per 300'000 series in memory
+        cpu: 2
+        # 2.5G per core
+        memory: 5Gi
+    # 5 GiB per 300'000 series in memory
+    persistentVolume:
+      size: 20Gi
+
+  querier:
+    #replicas: 1
+    podSecurityContext: null
+    containerSecurityContext: null
+    service:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: mimir-querier-tls
+    # frontend-client:
+    #   tls_enabled: true
+    #   tls_ca_path: /var/run/secrets/certs/service-ca.crt
+    # scheduler-client:
+    #   tls_enabled: true
+    #   tls_ca_path: /var/run/secrets/certs/service-ca.crt
+    # store-gateway-client:
+    #   tls_enabled: true
+    #   tls_ca_path: /var/run/secrets/certs/service-ca.crt
+    # resources:
+    #   requests:
+    #     cpu: 100m
+    #     memory: 128Mi
+
+  compactor:
+    podSecurityContext: null
+    containerSecurityContext: null
+    enabled: true
+    #replicas: 1
+    service:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: mimir-compactor-tls
+
+  ruler:
+    enabled: false
+    podSecurityContext: null
+    containerSecurityContext: null
+    #client:
+    #  tls_enabled: true
+    #  tls_ca_path: /var/run/secrets/certs/service-ca.crt
+    #query-frontend:
+    #  grpc-client-config:
+    #    tls_enabled: true
+    #    tls_ca_path: /var/run/secrets/certs/service-ca.crt
+
+  query-frontend:
+    podSecurityContext: null
+    containerSecurityContext: null
+    #grpc-client-config:
+    #  tls_enabled: true
+    #  tls_ca_path: /var/run/secrets/certs/service-ca.crt
+
+  query_frontend:
+    #replicas: 1
+    service:
+        annotations:
+          service.beta.openshift.io/serving-cert-secret-name: mimir-query-frontend-tls
+    extraVolumes:
+    - name: certs
+      projected:
+        sources:
+          - configMap:
+              name: openshift-service-ca.crt
+          - secret:
+              name: mimir-query-frontend-tls
+        defaultMode: 420
+    extraVolumeMounts:
+    - name: certs
+      mountPath: /var/run/secrets/certs
+    resources:
+      requests:
+        # 1 core for every 250 queries per second
+        cpu: 100m
+        # 1GiB for every 250 queries per second
+        memory: 1Gi
+
+  #query-scheduler:
+  #  grpc-client-config:
+  #    tls_enabled: true
+  #    tls_ca_path: /var/run/secrets/certs/service-ca.crt
+
+  query_scheduler:
+    service:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: mimir-query-scheduler-tls
+    extraVolumes:
+    - name: certs
+      projected:
+        sources:
+          - configMap:
+              name: openshift-service-ca.crt
+          - secret:
+              name: mimir-query-scheduler-tls
+        defaultMode: 420
+    extraVolumeMounts:
+    - name: certs
+      mountPath: /var/run/secrets/certs
+    resources:
+      requests:
+        # 1 core for every 500 queries per second
+        cpu: 100m
+        # 100MiB for every 500 queries per second
+        memory: 100Mi
+
+  overrides_exporter:
+    service:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: mimir-overrides-exporter-tls
+    extraVolumes:
+    - name: certs
+      projected:
+        sources:
+          - configMap:
+              name: openshift-service-ca.crt
+          - secret:
+              name: mimir-overrides-exporter-tls
+        defaultMode: 420
+    extraVolumeMounts:
+    - name: certs
+      mountPath: /var/run/secrets/certs
+
+  store_gateway:
+    service:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: mimir-store-gateway-tls
+    extraVolumes:
+    - name: certs
+      projected:
+        sources:
+          - configMap:
+              name: openshift-service-ca.crt
+          - secret:
+              name: mimir-store-gateway-tls
+        defaultMode: 420
+    extraVolumeMounts:
+    - name: certs
+      mountPath: /var/run/secrets/certs
+    resources:
+      requests:
+        # 1 core every 10 queries per second
+        cpu: 100m
+        # 1 GiB every 10 queries per second
+        memory: 512Mi
+    # 13GB every 1 million active series
+    persistentVolume:
+      size: 20Gi
+
+  memcached:
+    podSecurityContext: null
+    containerSecurityContext: null
+
+  rollout_operator:
+    enabled: false
+    podSecurityContext:
+      fsGroup: null
+      runAsGroup: null
+      runAsUser: null
+    containerSecurityContext: null
+
+  gateway:
+    podSecurityContext: null
+    containerSecurityContext: null
+
+  metaMonitoring:
+    grafanaAgent:
+      podSecurityContext: null
+      containerSecurityContext: null
+
+  grafana-agent-operator:
+    #podSecurityContext: null
+    #containerSecurityContext: null
+    podSecurityContext:
+      runAsUser: null
+      fsGroup: null
+      runAsGroup: null
+      #runAsUser: 1001170000
+      #fsGroup: 1001170000
+      #runAsGroup: 1001170000
+    #containerSecurityContext:
+    #  runAsUser: 1001170000
+
+
+  #store_gateway:
+    #replicas: 1
+
+  #memberlist:
+  #  tls_ca_path: /var/run/secrets/certs/service-ca.crt
+
+  alertmanager:
+    enabled: false
+    #alertmanager_client:
+    #  tls_enabled: true
+    #  tls_ca_path: /var/run/secrets/certs/service-ca.crt
+
+  mimir:
+    structuredConfig:
+      common:
+        storage:
+          backend: s3
+          s3:
+            bucket_name: "${bucket_name}"
+            endpoint: "${endpoint}"
+            access_key_id: "${access_key_id}"
+            secret_access_key: "${access_key_secret}"
+            http:
+              tls_ca_path: /etc/mimir/certs/service-ca.crt
+      blocks_storage:
+        s3:
+          bucket_name: "${blocks_bucket}"
+          #endpoint: "${blocks_endpoint}"
+          access_key_id: "${blocks_access_key_id}"
+          secret_access_key: "${blocks_access_key_secret}"
+          #http:
+          #  tls_ca_path: /etc/mimir/certs/service-ca.crt
+      #storageClass: openshift-storage.noobaa.io
+      #replicas: 1
+
+      limits:
+        # The maximum number of in-memory series per tenant, across the cluster before
+        # replication. 0 to disable.
+        # CLI flag: -ingester.max-global-series-per-user
+        # default = 150000
+        max_global_series_per_user: 500000
+
+        # Allow higher ingestion rate
+        # Per-tenant ingestion rate limit in samples per second.
+        # CLI flag: -distributor.ingestion-rate-limit
+        # default = 10000
+        ingestion_rate: 100000 # 150000
+        # Per-tenant allowed ingestion burst size (in number of samples).
+        # CLI flag: -distributor.ingestion-burst-size
+        # default = 200000
+        ingestion_burst_size: 250000 # 300000
+
+  minio:
+    enabled: false  # Using NooBaa, not local MinIO

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: rh-opentelemetry-instance
+description: A Helm Chart for RedHat OpenTelemetry Instance
+type: application
+version: 0.3.19
+appVersion: "0.1.0"

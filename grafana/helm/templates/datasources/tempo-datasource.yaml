@@ -1,0 +1,76 @@
+{{- if .Values.datasources.enabled -}}
+{{- range $index, $tenant := .Values.tenants -}}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: {{ printf "tempo-datasource-%s" $tenant }}
+  namespace: {{ include "grafana-instance.namespace" $ }}
+  labels:
+    {{- include "grafana-instance.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: datasource
+    app.kubernetes.io/part-of: {{ include "grafana-instance.namespace" $ }}.{{ include "grafana-instance.name" $ }}
+spec:
+  {{- include "grafana-instance.commonValues" $ | nindent 2 }}
+  valuesFrom:
+    - targetPath: "secureJsonData.httpHeaderValue1"
+      valueFrom:
+        secretKeyRef:
+          name: grafana-sa-auth-token
+          key: token
+  datasource:
+    uid: {{ printf "tempo-datasource-%s" $tenant }}
+    name: {{ (printf "tempo %s" $tenant) | title }}
+    type: tempo
+    access: proxy
+    url: {{ printf "%s" $.Values.grafana.datasources.tempo.url | quote }}
+    isDefault: false
+    editable: false
+    secureJsonData:
+      httpHeaderValue1: 'Bearer ${token}'
+      httpHeaderValue2: {{ $tenant | quote }}
+    jsonData:
+      httpHeaderName1: 'Authorization'
+      httpHeaderName2: 'X-Scope-OrgID'
+      tlsSkipVerify: true
+      timeInterval: "5s"
+      tracesToLogsV2:
+        datasourceUid: {{ printf "loki-datasource-%s" $tenant }}
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        tags: 
+          - key: "service.name"
+            value: "service_name"
+          - key: "k8s.namespace.name" 
+            value: "k8s_namespace_name"
+          - key: "k8s.pod.name"
+            value: "k8s_pod_name"
+        filterByTraceID: true
+        filterBySpanID: true
+        customQuery: true
+        query: '{${__tags}} | trace_id = "${__trace.traceId}"'
+      tracesToMetrics:
+        datasourceUid: {{ printf "mimir-datasource-%s" $tenant }}
+      lokiSearch:
+        datasourceUid: {{ printf "loki-datasource-%s" $tenant }}
+      serviceMap:
+        datasourceUid: {{ printf "mimir-datasource-%s" $tenant }}
+      search:
+        hide: false
+        filters:
+          - id: "service-namespace"
+            operator: "="
+            scope: "resource"
+            tag: "service.namespace"
+          - id: "service-name"
+            operator: "="
+            scope: "resource"
+            tag: "service.name"
+          - id: "span-name"
+            operator: "="
+            scope: "span"
+            tag: "name"
+      nodeGraph:
+        enabled: true
+---
+{{ end }}
+{{ end }}

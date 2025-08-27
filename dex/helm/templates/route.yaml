@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: dex
+  namespace: {{ include "dex.namespace" . }}
+spec:
+  path: /
+  to:
+    name: dex-instance
+    weight: 100
+    kind: Service
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  port:
+    targetPort: http

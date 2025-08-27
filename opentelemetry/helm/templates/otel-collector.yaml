@@ -1,0 +1,76 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ include "mychart.name" . }}
+  namespace: {{ include "mychart.namespace" . }}
+  labels:
+    {{- include "mychart.labels" . | nindent 4 }}
+spec:
+  mode: {{ .Values.mode }}
+  replicas: {{ .Values.replicaCount }}
+  managementState: {{ .Values.managementState }}
+  serviceAccount: {{ include "mychart.serviceAccountName" . }}
+  env:
+    - name: TENANT_ID
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+
+  config: 
+    extensions:
+      bearertokenauth:
+        scheme: "Bearer"
+        filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+    receivers:
+      {{- include "mychart.receivers" . | nindent 6 }}
+
+    processors:
+      {{- include "mychart.processors" . | nindent 6 }}
+
+    exporters:
+      {{- include "mychart.exporters" . | nindent 6 }}
+
+    service:
+      extensions: [bearertokenauth]
+      pipelines:
+        {{- range $_, $value := .Values.tenantRoles }}
+        traces/{{ $value }}:
+          receivers: [jaeger, opencensus, otlp, zipkin]
+          processors: [memory_limiter, k8sattributes, resourcedetection, transform/tenant, batch]
+          exporters: [otlphttp/tempo-{{ $value }}, debug/traces]
+        {{- end }}
+
+        {{- range $_, $value := .Values.tenantRoles }}
+        logs/{{ $value }}:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, transform/logs, resource, transform/tenant, batch]
+          exporters: [otlphttp/lokistack-{{ $value }}, debug/logs]
+        {{- end }}
+
+        {{- range $_, $value := .Values.tenantRoles }}
+        metrics/{{ $value }}:
+          receivers: [otlp, prometheus/cluster, prometheus/{{ $value }}]
+          processors: [memory_limiter, k8sattributes, transform/tenant, batch/metrics]
+          exporters: [otlphttp/mimir-{{ $value }}, debug/metrics]
+        {{- end }}
+
+  {{- if and .Values.volumes .Values.volumeMounts }}
+  volumeMounts: {{ .Values.volumeMounts | toYaml | nindent 4 }}
+  volumes: {{ .Values.volumes | toYaml | nindent 4 }}
+  {{- end }}
+  ingress:
+    {{- include "mychart.annotations" (list . "ingress") | nindent 4 -}}
+    {{- if not .Values.ingress.enabled }}
+    type: route
+    route:
+      termination: {{ .Values.ingress.termination | default "edge" | quote }}
+    {{- else }}
+    type: ingress
+    ingressClassName: {{ .Values.ingress.className | quote }}
+    {{- if .Values.ingress.hostname -}}
+    hostname: {{ .Values.ingress.hostname | quote }}
+    {{- end }}
+    ruleType: {{ .Values.ingress.ruleType | default "path" quote }}
+    tls: {{ .Values.ingress.tls | toYaml | nindent 4 }}
+    {{- end }}

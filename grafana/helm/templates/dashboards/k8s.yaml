@@ -1,0 +1,21 @@
+{{- if .Values.dashboards.enabled -}}
+{{- range $index, $tenant := .Values.tenants -}}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: {{ printf "dashboard-k8s-%s" $tenant }}
+  namespace: {{ include "grafana-instance.namespace" $ }}
+  labels:
+    {{- include "grafana-instance.labels" $ | nindent 4 }}
+spec:
+  {{- include "grafana-instance.commonValues" $ | nindent 2 }}
+  configMapRef:
+    key: k8s.json
+    name: dashboard-k8s-json
+  datasources:
+    - datasourceName: {{ printf "mimir-datasource-%s" $tenant }}
+      inputName: DS_PROMETHEUS
+  folderRef: opentelemetry-folder
+---
+{{ end }}
+{{ end }}

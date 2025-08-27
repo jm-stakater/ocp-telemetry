@@ -1,0 +1,50 @@
+{{- if .Values.datasources.enabled -}}
+{{- range $index, $tenant := .Values.tenants -}}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: {{ printf "mimir-datasource-%s" $tenant }}
+  namespace: {{ include "grafana-instance.namespace" $ }}
+  labels:
+    {{- include "grafana-instance.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: datasource
+    app.kubernetes.io/part-of: {{ include "grafana-instance.namespace" $ }}.{{ include "grafana-instance.name" $ }}
+spec:
+  {{- include "grafana-instance.commonValues" $ | nindent 2 }}
+  valuesFrom:
+    - targetPath: "secureJsonData.httpHeaderValue1"
+      valueFrom:
+        secretKeyRef:
+          name: grafana-sa-auth-token
+          key: token
+  datasource:
+    uid: {{ printf "mimir-datasource-%s" $tenant }}
+    name: {{ (printf "mimir %s" $tenant) | title }}
+    type: prometheus
+    access: proxy
+    url: {{ printf "%s/prometheus" $.Values.grafana.datasources.mimir.url | quote }}
+    isDefault: false
+    editable: false
+    secureJsonData:
+      httpHeaderValue1: 'Bearer ${token}'
+      httpHeaderValue2: {{ $tenant | quote }}
+    jsonData:
+      httpHeaderName1: 'Authorization'
+      httpHeaderName2: 'X-Scope-OrgID'
+      tlsSkipVerify: true
+      timeInterval: 5s
+      httpMethod: POST
+      manageAlerts: true
+      allowAsRecordingRulesTarget: true
+      prometheusType: Mimir
+      prometheusVersion: 2.9.1
+      cacheLevel: 'High'
+      disableRecordingRules: false
+      incrementalQueryOverlapWindow: 10m
+      exemplarTraceIdDestinations:
+        - datasourceUid: {{ printf "tempo-datasource-%s" $tenant }}
+          name: trace_id
+          urlDisplayLabel: "Trace: ${__value.raw}"
+---
+{{ end }}
+{{ end }}

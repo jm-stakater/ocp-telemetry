@@ -1,0 +1,68 @@
+#clusterDomain: cluster.example.org
+grafana:
+  routeName: grafana-instance-route
+  namespace: otel-monitoring
+allowedGroups: []
+
+# Stripped down values.yaml for dex-broker
+# @see https://github.com/dexidp/helm-charts/raw/refs/tags/dex-0.23.1/charts/dex/values.yaml
+
+dex:
+  replicaCount: 1
+
+  configSecret:
+    create: false
+    name: "dex-config"
+
+  volumes:
+  - name: dex-tls
+    secret:
+      secretName: dex-tls
+  - name: dex-sa
+    projected:
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          name: kube-root-ca.crt
+          items:
+          - key: ca.crt
+            path: ca.crt
+      - downwardAPI:
+          items:
+          - path: namespace
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+      - configMap:
+          name: openshift-service-ca.crt
+          items:
+          - key: service-ca.crt
+            path: service-ca.crt
+      defaultMode: 420
+
+  volumeMounts:
+  - name: dex-tls
+    mountPath: /etc/dex/tls
+    readOnly: true
+  - name: dex-sa
+    mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+    readOnly: true
+
+  envVars:
+  - name: SA_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: dex-instance-sa-token
+        key: token
+
+  serviceAccount:
+    create: false
+    annotations:
+      serviceaccounts.openshift.io/oauth-redirectreference.dex: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"dex"}}'
+    name: "dex-instance-sa"
+
+  service:
+    annotations:
+      service.beta.openshift.io/serving-cert-secret-name: dex-tls

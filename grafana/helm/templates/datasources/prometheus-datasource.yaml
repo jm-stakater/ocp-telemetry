@@ -1,0 +1,30 @@
+{{- if .Values.datasources.enabled -}}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: prometheus-datasource
+  namespace: {{ include "grafana-instance.namespace" . }}
+  labels:
+    {{- include "grafana-instance.labels" . | nindent 4 }}
+spec:
+  {{- include "grafana-instance.commonValues" . | nindent 2 }}
+  valuesFrom:
+    - targetPath: "secureJsonData.httpHeaderValue1"
+      valueFrom:
+        secretKeyRef:
+          name: grafana-sa-auth-token
+          key: token
+  datasource:
+    name: Prometheus
+    type: prometheus
+    access: proxy
+    url: https://thanos-querier.openshift-monitoring.svc:9091
+    isDefault: true
+    editable: false
+    secureJsonData:
+      httpHeaderValue1: 'Bearer ${token}'
+    jsonData:
+      httpHeaderName1: 'Authorization'
+      tlsSkipVerify: true
+      timeInterval: "5s"
+{{- end }}

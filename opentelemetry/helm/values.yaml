@@ -1,0 +1,158 @@
+# Default values for example.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+
+# Although not a strict requirement, it is recommended this
+# preset be used with mode=deployment or mode=statefulset with
+# a single replica. Running k8sclusterreceiver on multiple Collectors
+# will produce duplicate data.
+mode: deployment
+
+managementState: managed
+config:
+  global:
+    # Limit per scrape config on the number of targets dropped by relabeling
+    # that will be kept in memory. 0 means no limit.
+    keep_dropped_targets: 100
+    # How frequently to scrape targets by default.
+    # [ scrape_interval: <duration> | default = 1m ]
+    scrape_interval: 30s
+    # How long until a scrape request times out.
+    # It cannot be greater than the scrape interval.
+    # [ scrape_timeout: <duration> | default = 10s ]
+    scrape_timeout: 10s
+    # How frequently to evaluate rules.
+    evaluation_interval: 30s
+
+  replaceLabels:
+    __meta_kubernetes_namespace: namespace
+    __meta_kubernetes_service_name: service
+    __meta_kubernetes_pod_name: pod_name
+    __meta_kubernetes_ingress_name: ingress
+
+  ignore:
+    namespace:
+    - "default"
+    - "openshift.*"
+    - "kube.*"
+    - "rh-.*"
+    - ".*-operator"
+
+  # OpenShift-specific Endpoints
+  openshift:
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  internal:
+    # Default to scraping over https. If required, just disable this or change to
+    # `http`.
+    scheme: https
+
+  tls:
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    insecure_skip_verify: true
+  authorization:
+    credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+  processors:
+    memory_limiter:
+      check_interval: 5s
+      limit_mib: 6000  # Increased from 4000 for better throughput
+      spike_limit_mib: 1000  # Increased from 500
+
+  receivers: {}
+    #certName: opentelemetry-collector-collector-headless-tls
+    #tls:
+    #  cert_file: /var/run/secrets/certs/tls.crt
+    #  key_file: /var/run/secrets/certs/tls.key
+    #  ca_file: /var/run/secrets/certs/service-ca.crt
+    #  reload_interval: 1h
+    #auth:
+    #  authenticator: bearertokenauth
+
+  exporters:
+    tls:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+      reload_interval: 1h
+      insecure_skip_verify: true
+    auth:
+      authenticator: bearertokenauth
+
+# A list of tenant identifiers for your observability platform.
+tenantRoles:
+  - infrastructure
+  - application
+  - audit
+
+# A map of tenant configurations. The keys must match the items in tenantRoles.
+# Each tenant has a list of namespaces from which Prometheus will scrape
+# pod and service endpoint metrics.
+tenants:
+  # The 'application' tenant scrapes your business applications.
+  # As requested, this is configured to only scrape the 'grafana-stack' namespace.
+  application:
+    namespaces: []
+      # You can add other application namespaces here if needed
+      # - "my-app-dev"
+      # - "my-app-prod"
+
+  # The 'audit' tenant can be configured to scrape services related to
+  # security and compliance.
+  audit:
+    namespaces: []
+    # - "openshift-compliance"
+    # - "gatekeeper-system"
+    # # Add other audit-related namespaces here
+
+  # The 'infrastructure' tenant scrapes applications that are part of the
+  # cluster infrastructure but are not covered by the main 'prometheus/cluster' receiver.
+  infrastructure:
+    namespaces: []
+    # - "opentelemetry-.*"
+    # - "openshift-*"
+    # - "open-cluster-.*"
+    # - "cert-manager"
+    # - "rh-.*"
+    # # Add other infrastructure-related namespaces here
+
+# Below is default Helm-values file
+# Don't change unless you have to
+
+# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+replicaCount: 1
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+    # serviceaccounts.openshift.io/oauth-redirectreference.primary: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"grafana-instance-route"}}'
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: "opentelemetry-collector-collector"
+
+# This is to override the chart name.
+nameOverride: "opentelemetry-collector"
+fullnameOverride: ""
+namespaceOverride: opentelemetry
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+#- name: certs
+#  projected:
+#    sources:
+#      - configMap:
+#          name: openshift-service-ca.crt
+#      - secret:
+#          name: opentelemetry-collector-collector-headless-tls
+#    defaultMode: 420
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+#- name: certs
+#  mountPath: /var/run/secrets/certs
+#  readOnly: true

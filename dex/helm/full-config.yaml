@@ -1,0 +1,741 @@
+{{/* Environment Variables is supported and expanded */}}
+---
+  issuer: ""
+  storage:
+    - type: etcd
+      config:
+        endpoints:
+          - http://localhost:2379
+        namespace: my-etcd-namespace/
+        username: username
+        password: password
+        ssl:
+          serverName: <ensures that the certificate matches the given hostname the client is connecting to>
+          caFile: <path to the ca>
+          keyFile: <path to the private key>
+          certFile: <path to the certificate>
+    - type: kubernetes
+      config:
+        inCluster: true
+    - type: sqlite3
+      config:
+        file: /var/dex/dex.db
+    - type: postgres
+      config:
+        host: localhost
+        port: 5432
+        database: dex_db
+        user: dex
+        password: 66964843358242dbaaa7778d8477c288
+        ssl:
+          mode: verify-ca
+          caFile: /etc/dex/postgres.ca
+    - type: mysql
+      config:
+        database: dex_db
+        user: dex
+        password: 66964843358242dbaaa7778d8477c288
+        ssl:
+          mode: custom
+          caFile: /etc/dex/mysql.ca
+
+  web:
+    http: ""
+    https: ""
+    headers:
+      Content-Security-Policy: ""
+      X-Frame-Options: ""
+      X-Content-Type-Options: ""
+      X-XSS-Protection: ""
+      Strict-Transport-Security: ""
+    tlsCert: ""
+    tlsKey: ""
+    tlsMinVersion: ""
+    tlsMaxVersion: ""
+    allowedOrigins: []
+    allowedHeaders: []
+    clientRemoteIP:
+      header: []
+      trustedProxies: []
+
+  telemetry:
+    http: ""
+    # EnableProfiling makes profiling endpoints available via web interface host:port/debug/pprof/
+    enableProfiling: false
+  oauth2:
+    grantTypes: []
+    responseTypes: []
+    skipApprovalScreen: false
+    alwaysShowLoginScreen: false
+    passwordConnector: ""
+  grpc:
+    addr: ""
+    tlsCert: ""
+    tlsKey: ""
+    tlsClientCA: ""
+    tlsMinVersion: ""
+    tlsMaxVersion: ""
+    reflection: false
+
+  expiry:
+    signingKeys: 24h
+    idTokens: 1h
+    authRequests: 5m
+    deviceRequests: 10m
+    refreshTokens: 30d
+
+  logger:
+    level: info
+    format: ""
+
+  frontend:
+    #Dir: /var/dex/frontend
+    #WebFS fs.FS
+    #LogoURL "(issuer URL)/theme/logo.png"
+    #Issuer "dex"
+    #Theme: "light"
+    ## Map of extra values passed into the templates
+    #Extra: {}
+
+  connectors:
+    #region OpenStack Keystone
+    - type: keystone
+      name: "example-keystone"
+      id: "example-keystone"
+      config:
+        domain: ""
+        keystoneHost: ""
+        keystoneUsername: ""
+        keystonePassword: ""
+    #endregion OpenStack Keystone
+
+    #region Internal Testing
+    - type: mockCallback
+      name: "example-mockCallback"
+      id: "example-mockCallback"
+      config: {}
+    #endregion Internal Testing
+
+    #region Internal Testing
+    - type: mockPassword
+      name: "example-mockPassword"
+      id: "example-mockPassword"
+      config:
+        username: ""
+        password: ""
+    #endregion Internal Testing
+
+    #region LDAP
+    - type: ldap
+      name: "example-ldap"
+      id: "example-ldap"
+      config:
+        # Host and optional port of the LDAP server in the form "host:port".
+        # If the port is not supplied, it will be guessed based on "insecureNoSSL",
+        # and "startTLS" flags. 389 for insecure or StartTLS connections, 636
+        # otherwise.
+        host: ldap.example.com:636
+
+        # Following field is required if the LDAP host is not using TLS (port 389).
+        # Because this option inherently leaks passwords to anyone on the same network
+        # as dex, THIS OPTION MAY BE REMOVED WITHOUT WARNING IN A FUTURE RELEASE.
+        #
+        # insecureNoSSL: true
+
+        # If a custom certificate isn't provide, this option can be used to turn on
+        # TLS certificate checks. As noted, it is insecure and shouldn't be used outside
+        # of explorative phases.
+        #
+        # insecureSkipVerify: true
+
+        # When connecting to the server, connect using the ldap:// protocol then issue
+        # a StartTLS command. If unspecified, connections will use the ldaps:// protocol
+        #
+        # startTLS: true
+
+        # Path to a trusted root certificate file. Default: use the host's root CA.
+        rootCA: /etc/dex/ldap.ca
+
+        # A raw certificate file can also be provided inline.
+        # rootCAData: ( base64 encoded PEM file )
+
+        # The DN and password for an application service account. The connector uses
+        # these credentials to search for users and groups. Not required if the LDAP
+        # server provides access for anonymous auth.
+        # Please note that if the bind password contains a `$`, it has to be saved in an
+        # environment variable which should be given as the value to `bindPW`.
+        bindDN: uid=serviceaccount,cn=users,dc=example,dc=com
+        bindPW: password
+
+        # The attribute to display in the provided password prompt. If unset, will
+        # display "Username"
+        usernamePrompt: SSO Username
+
+        # User search maps a username and password entered by a user to a LDAP entry.
+        userSearch:
+          # BaseDN to start the search from. It will translate to the query
+          # "(&(objectClass=person)(uid=<username>))".
+          baseDN: cn=users,dc=example,dc=com
+          # Optional filter to apply when searching the directory.
+          filter: "(objectClass=person)"
+
+          # username attribute used for comparing user entries. This will be translated
+          # and combined with the other filter as "(<attr>=<username>)".
+          username: uid
+          # The following three fields are direct mappings of attributes on the user entry.
+          # String representation of the user.
+          idAttr: uid
+          # Required. Attribute to map to Email.
+          emailAttr: mail
+          # Maps to display name of users. No default value.
+          nameAttr: name
+          # Maps to preferred username of users. No default value.
+          preferredUsernameAttr: uid
+
+        # Group search configuration.
+        groupSearch:
+          baseDN: cn=groups,dc=freeipa,dc=example,dc=com
+          filter: "(objectClass=group)"
+          userMatchers:
+          - userAttr: uid
+            groupAttr: member
+          nameAttr: name
+    #endregion LDAP
+
+    #region Gitea
+    - type: gitea
+      name: "example-gitea"
+      id: "example-gitea"
+      config:
+        # Credentials can be string literals or pulled from the environment.
+        clientID: $GITEA_CLIENT_ID
+        clientSecret: $GITEA_CLIENT_SECRET
+        redirectURI: http://127.0.0.1:5556/dex/callback
+        # optional, default = https://gitea.com
+        baseURL: https://gitea.com
+    #endregion Gitea
+
+    #region Github (Cloud)
+    - type: github
+      name: "example-github"
+      id: "example-github"
+      config:
+        # Credentials can be string literals or pulled from the environment.
+        clientID: $GITHUB_CLIENT_ID
+        clientSecret: $GITHUB_CLIENT_SECRET
+        redirectURI: http://127.0.0.1:5556/dex/callback
+
+        # List of org and team names.
+        #  - If specified, a user MUST be a member of at least ONE of these orgs
+        #    and teams (if set) to authenticate with dex.
+        #  - Dex queries the following organizations for group information if the
+        #    "groups" scope is requested. Group claims are formatted as "(org):(team)".
+        #    For example if a user is part of the "engineering" team of the "coreos" org,
+        #    the group claim would include "coreos:engineering".
+        #  - If teams are specified, dex only returns group claims for those teams.
+        orgs:
+        - name: my-organization
+        - name: my-organization-with-teams
+          teams:
+          - red-team
+          - blue-team
+
+        # Flag which indicates that all the user's orgs and teams should be loaded.
+        # Only works if neither 'org' nor 'orgs' are specified in the config.
+        loadAllGroups: false
+
+        # How the team names are formatted.
+        #  - Options: 'name' (default), 'slug', 'both'.
+        #  - Examples:
+        #    - 'name': 'acme:Site Reliability Engineers'
+        #    - 'slug': 'acme:site-reliability-engineers'
+        #    - 'both': 'acme:Site Reliability Engineers', 'acme:site-reliability-engineers'
+        teamNameField: slug
+
+        # Flag which will switch from using the internal GitHub id to the users handle (@mention) as the user id.
+        # It is possible for a user to change their own username, but it is very rare for them to do so
+        useLoginAsID: false
+
+        # A preferred email domain to use when returning the user's email.
+        #  - If the user has a PUBLIC email, it is ALWAYS returned in the email claim,
+        #    so this field would have NO effect (this may change in the future).
+        #  - By default, if the user does NOT have a public email, their primary email is returned.
+        #  - When 'preferredEmailDomain' is set, the first email matching this domain is returned,
+        #    we fall back to the primary email if no match is found.
+        #  - To allow multiple subdomains, you may specify a wildcard like "*.example.com"
+        #    which will match "aaaa.example.com" and "bbbb.example.com", but NOT "example.com".
+        #  - To return the user's no-reply email, set this field to "users.noreply.github.com",
+        #    this is a mostly static email that GitHub assigns to the user. These emails
+        #    are formatted like 'ID+USERNAME@users.noreply.github.com' for newer accounts
+        #    and 'USERNAME@users.noreply.github.com' for older accounts.
+        preferredEmailDomain: "example.com"
+    #endregion Github (Cloud)
+
+    #region Github (Self-Hosted)
+    - type: github
+      name: "example-github-enterprise"
+      id: "example-github-enterprise"
+      config:
+        # Required fields. Dex must be pre-registered with GitHub Enterprise
+        # to get the following values.
+        # Credentials can be string literals or pulled from the environment.
+        clientID: $GITHUB_CLIENT_ID
+        clientSecret: $GITHUB_CLIENT_SECRET
+        redirectURI: http://127.0.0.1:5556/dex/callback
+
+        # List of org and team names.
+        #  - If specified, a user MUST be a member of at least ONE of these orgs
+        #    and teams (if set) to authenticate with dex.
+        #  - Dex queries the following organizations for group information if the
+        #    "groups" scope is requested. Group claims are formatted as "(org):(team)".
+        #    For example if a user is part of the "engineering" team of the "coreos" org,
+        #    the group claim would include "coreos:engineering".
+        #  - If teams are specified, dex only returns group claims for those teams.
+        orgs:
+        - name: my-organization
+        - name: my-organization-with-teams
+          teams:
+          - red-team
+          - blue-team
+
+        # Flag which indicates that all the user's orgs and teams should be loaded.
+        # Only works if neither 'org' nor 'orgs' are specified in the config.
+        loadAllGroups: false
+
+        # How the team names are formatted
+        #  - Options: 'name' (default), 'slug', 'both'.
+        #  - Examples:
+        #    - 'name': 'acme:Site Reliability Engineers'
+        #    - 'slug': 'acme:site-reliability-engineers'
+        #    - 'both': 'acme:Site Reliability Engineers', 'acme:site-reliability-engineers'
+        teamNameField: slug
+
+        # Required ONLY for GitHub Enterprise.
+        # This is the Hostname of the GitHub Enterprise account listed on the
+        # management console. Ensure this domain is routable on your network.
+        hostName: git.example.com
+
+        # ONLY for GitHub Enterprise. Optional field.
+        # Used to support self-signed or untrusted CA root certificates.
+        rootCA: /etc/dex/ca.crt
+    #endregion Github (Self-Hosted)
+
+    #region Gitlab
+    - type: gitlab
+      name: "example-gitlab"
+      id: "example-gitlab"
+      config:
+        # optional, default = https://gitlab.com
+        baseURL: https://gitlab.com
+        # Credentials can be string literals or pulled from the environment.
+        clientID: $GITLAB_APPLICATION_ID
+        clientSecret: $GITLAB_CLIENT_SECRET
+        redirectURI: http://127.0.0.1:5556/dex/callback
+        # Optional groups whitelist, communicated through the "groups" scope.
+        # If `groups` is omitted, all of the user's GitLab groups are returned when the groups scope is present.
+        # If `groups` is provided, this acts as a whitelist - only the user's GitLab groups that are in the configured `groups` below will go into the groups claim.  Conversely, if the user is not in any of the configured `groups`, the user will not be authenticated.
+        groups:
+        - my-group
+        # flag which will switch from using the internal GitLab id to the users handle (@mention) as the user id.
+        # It is possible for a user to change their own user name but it is very rare for them to do so
+        useLoginAsID: false
+        # Flag to include user group permissions in the user groups.
+        # For example, if the user has maintainer access to a GitLab group named "project/group1", 
+        # the user's groups will reflect two entries: "project/group1" and "project/group1:maintainer".
+        getGroupsPermission: false
+    #endregion Gitlab
+
+    #region Google
+    - type: google
+      name: "example-google"
+      id: "example-google"
+      config:
+        # Connector config values starting with a "$" will read from the environment.
+        clientID: $GOOGLE_CLIENT_ID
+        clientSecret: $GOOGLE_CLIENT_SECRET
+
+        # Dex's issuer URL + "/callback"
+        redirectURI: http://127.0.0.1:5556/callback
+
+        # Set the value of `prompt` query parameter in the authorization request
+        promptType: consent
+
+        # Google supports whitelisting allowed domains when using G Suite
+        # (Google Apps). The following field can be set to a list of domains
+        # that can log in:
+        hostedDomains: []
+
+        # The Google connector supports whitelisting allowed groups when using G Suite
+        # (Google Apps). The following field can be set to a list of groups
+        # that can log in:
+        groups: []
+
+        # Google does not support the OpenID Connect groups claim and only supports
+        # fetching a user's group membership with a service account.
+        # This service account requires an authentication JSON file and the email
+        # of a G Suite admin to impersonate:
+        #
+        serviceAccountFilePath: googleAuth.json
+        #domainToAdminEmail: { "*": "super-user@example.com", "my-domain.com": "super-user@my-domain.com" }
+        domainToAdminEmail: {}
+    #endregion Google
+
+    #region OpenID Connect
+    - type: oidc
+      name: "example-oidc"
+      id: "example-oidc"
+      config:
+        # Canonical URL of the provider, also used for configuration discovery.
+        # This value MUST match the value returned in the provider config discovery.
+        #
+        # See: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
+        issuer: https://accounts.google.com
+
+        # Connector config values starting with a "$" will read from the environment.
+        clientID: $GOOGLE_CLIENT_ID
+        clientSecret: $GOOGLE_CLIENT_SECRET
+
+        # Dex's issuer URL + "/callback"
+        redirectURI: http://127.0.0.1:5556/callback
+
+
+        # Some providers require passing client_secret via POST parameters instead
+        # of basic auth, despite the OAuth2 RFC discouraging it. Many of these
+        # cases are caught internally, but some may need to uncomment the
+        # following field.
+        #
+        # basicAuthUnsupported: true
+        
+        # List of additional scopes to request in token response
+        # Default is profile and email
+        # Full list at https://dexidp.io/docs/custom-scopes-claims-clients/
+        # scopes:
+        #  - profile
+        #  - email
+        #  - groups
+
+        # Some providers return claims without "email_verified", when they had no usage of emails verification in enrollment process
+        # or if they are acting as a proxy for another IDP etc AWS Cognito with an upstream SAML IDP
+        # This can be overridden with the below option
+        # insecureSkipEmailVerified: true 
+
+        # Groups claims (like the rest of oidc claims through dex) only refresh when the id token is refreshed
+        # meaning the regular refresh flow doesn't update the groups claim. As such by default the oidc connector
+        # doesn't allow groups claims. If you are okay with having potentially stale group claims you can use
+        # this option to enable groups claims through the oidc connector on a per-connector basis.
+        # This can be overridden with the below option
+        # insecureEnableGroups: true
+
+        # Filter users based on membership in the given groups. Authentication will be successful it the user is a member in a least
+        # one of the specified groups.
+        # allowedGroups:
+        #  - <value>
+
+        # When enabled, the OpenID Connector will query the UserInfo endpoint for additional claims. UserInfo claims
+        # take priority over claims returned by the IDToken. This option should be used when the IDToken doesn't contain
+        # all the claims requested.
+        # https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
+        # getUserInfo: true
+
+        # The set claim is used as user id.
+        # Claims list at https://openid.net/specs/openid-connect-core-1_0.html#Claims
+        # Default: sub
+        # userIDKey: nickname
+
+        # The set claim is used as user name.
+        # Default: name
+        # userNameKey: nickname
+
+        # The acr_values variable specifies the Authentication Context Class Values within
+        # the Authentication Request that the Authorization Server is being requested to process
+        # from this Client.
+        # acrValues: 
+        #  - <value>
+        #  - <value>
+
+        # For offline_access, the prompt parameter is set by default to "prompt=consent". 
+        # However this is not supported by all OIDC providers, some of them support different
+        # value for prompt, like "prompt=login" or "prompt=none"
+        # promptType: consent
+
+        # Some providers return non-standard claims (eg. mail).
+        # Use claimMapping to map those claims to standard claims:
+        # https://openid.net/specs/openid-connect-core-1_0.html#Claims
+        # claimMapping can only map a non-standard claim to a standard one if it's not returned in the id_token.
+        claimMapping:
+          # The set claim is used as preferred username.
+          # Default: preferred_username
+          # preferred_username: other_user_name
+
+          # The set claim is used as email.
+          # Default: email
+          # email: mail
+
+          # The set claim is used as groups.
+          # Default: groups
+          # groups: "cognito:groups"
+
+        # claimModifications can change claims during the login
+        claimModifications:
+          # newGroupFromClaims allows to create a new group, based on other claims
+          # they are concatenated using the delimiter.
+          # Currently only string claims are supported, and other claims are skipped
+          # The new group name is added to the groups claims, passed to the clients.
+          # For this example, the resulting group would be: `example::organization::email`
+          # newGroupFromClaims:
+          #   - prefix: example
+          #     delimiter: "::"
+          #     clearDelimiter: false
+          #     claims:
+          #       - organization
+          #       - email
+          # filterGroupClaims allows to filter the groups, using a regex.
+          # The regex must conform to the RE2 regex specification used in go regexp.
+          # Groups added using the newGroupFromClaims modification, are not passed through the filterGroupClaims
+          # filterGroupClaims:
+          #   groupsFilter: "<REGEX>"
+
+
+
+        # overrideClaimMapping will be used to override the options defined in claimMappings.
+        # i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the claimMapping.email.
+        # This setting allows you to override the default behavior of Dex and enforce the mappings defined in `claimMapping`.
+        overrideClaimMapping: false
+
+        # The section to override options discovered automatically from
+        # the providers' discovery URL (.well-known/openid-configuration).
+        providerDiscoveryOverrides: {}
+          # tokenURL provides a way to user overwrite the token URL
+          # from the .well-known/openid-configuration 'token_endpoint'.
+          # tokenURL: ""
+          #
+          # authURL provides a way to user overwrite the authorization URL
+          # from the .well-known/openid-configuration 'authorization_endpoint'.   
+          # authURL: ""
+    #endregion OpenID Connect
+
+    #region OAuth
+    - type: oauth
+      name: "example-oauth"
+      id: "example-oauth"
+      config:
+        # Connector config values starting with a "$" will read from the environment.
+        clientID: $REDDIT_CLIENT_ID
+        clientSecret: $REDDIT_CLIENT_SECRET
+        redirectURI: http://127.0.0.1:5556/callback
+
+        tokenURL: https://www.reddit.com/api/v1/access_token
+        authorizationURL: https://www.reddit.com/api/v1/authorize
+        userInfoURL: https://www.reddit.com/api/v1/me
+    
+        # Optional: Specify whether to communicate to Auth provider without
+        # validating SSL certificates
+        # insecureSkipVerify: false
+
+        # Optional: The location of file containing SSL certificates to communicate
+        # to Auth provider
+        # rootCAs:
+        # - /etc/ssl/reddit.pem
+
+        # Optional: List of scopes to request Auth provider for access user account
+        # scopes:
+        #  - identity
+
+        # Optional: Configurable keys for user ID look up
+        # userIDKey: id
+
+        # Auth providers return non-standard user identity profile
+        # Use claimMapping to map those user informations to standard claims:
+        claimMapping:
+          # Optional: Configurable keys for user name look up
+          userNameKey: user_name
+
+          # Optional: Configurable keys for preferred username look up
+          preferredUsernameKey: preferred_username
+
+          # Optional: Configurable keys for user groups look up
+          groupsKey: groups
+
+          # Optional: Configurable keys for email look up
+          emailKey: email
+
+          # Optional: Configurable keys for email verified look up
+          emailVerifiedKey: email_verified
+    #endregion OAuth
+
+    #region SAML
+    - type: saml
+      name: "example-saml"
+      id: "example-saml"
+      config:
+        # SSO URL used for POST value.
+        ssoURL: https://saml.example.com/sso
+
+        # CA to use when validating the signature of the SAML response.
+        ca: /path/to/ca.pem
+
+        # Dex's callback URL.
+        #
+        # If the response assertion status value contains a Destination element, it
+        # must match this value exactly.
+        #
+        # This is also used as the expected audience for AudienceRestriction elements
+        # if entityIssuer isn't specified.
+        redirectURI: https://dex.example.com/callback
+
+        # Name of attributes in the returned assertions to map to ID token claims.
+        usernameAttr: name
+        emailAttr: email
+        groupsAttr: groups # optional
+
+        # List of groups to filter access based on membership
+        # allowedGroups
+        #   - Admins
+
+        # CA's can also be provided inline as a base64'd blob.
+        #
+        # caData: ( RAW base64'd PEM encoded CA )
+
+        # To skip signature validation, uncomment the following field. This should
+        # only be used during testing and may be removed in the future.
+        #
+        # insecureSkipSignatureValidation: true
+
+        # Optional: Manually specify dex's Issuer value.
+        #
+        # When provided dex will include this as the Issuer value during AuthnRequest.
+        # It will also override the redirectURI as the required audience when evaluating
+        # AudienceRestriction elements in the response.
+        entityIssuer: https://dex.example.com/callback
+
+        # Optional: Issuer value expected in the SAML response.
+        ssoIssuer: https://saml.example.com/sso
+
+        # Optional: Delimiter for splitting groups returned as a single string.
+        #
+        # By default, multiple groups are assumed to be represented as multiple
+        # attributes with the same name.
+        #
+        # If "groupsDelim" is provided groups are assumed to be represented as a
+        # single attribute and the delimiter is used to split the attribute's value
+        # into multiple groups.
+        groupsDelim: ", "
+
+        # Optional: Requested format of the NameID.
+        #
+        # The NameID value is is mapped to the user ID of the user. This can be an
+        # abbreviated form of the full URI with just the last component. For example,
+        # if this value is set to "emailAddress" the format will resolve to:
+        #
+        #     urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+        #
+        # If no value is specified, this value defaults to:
+        #
+        #     urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+        #
+        nameIDPolicyFormat: persistent
+    #endregion SAML
+
+    #region AuthProxy
+    - type: authproxy
+      name: "example-authproxy"
+      id: "example-authproxy"
+      config:
+        userIDHeader: ""
+        userHeader: ""
+        userNameHeader: ""
+        emailHeader: ""
+        groupHeader: ""
+        groupHeaderSeparator: ""
+        staticGroups: []
+    #endregion AuthProxy
+
+    #region LinkedIn
+    - type: linkedin
+      name: "example-linkedin"
+      id: "example-linkedin"
+      config:
+        # Credentials can be string literals or pulled from the environment.
+        clientID: $LINKEDIN_APPLICATION_ID
+        clientSecret: $LINKEDIN_CLIENT_SECRET
+        redirectURI: http://127.0.0.1:5556/dex/callback
+    #endregion LinkedIn
+
+    #region Microsoft (Account)
+    - type: microsoft
+      name: "example-microsoft"
+      id: "example-microsoft"
+      config:
+        # Credentials can be string literals or pulled from the environment.
+        clientID: $MICROSOFT_APPLICATION_ID
+        clientSecret: $MICROSOFT_CLIENT_SECRET
+        redirectURI: http://127.0.0.1:5556/dex/callback
+    #endregion Microsoft (Account)
+
+    #region Bitbucket Cloud
+    - type: bitbucket
+      name: "example-bitbucket"
+      id: "example-bitbucket"
+      config:
+        # Credentials can be string literals or pulled from the environment.
+        clientID: $BITBUCKET_CLIENT_ID
+        clientSecret: $BITBUCKET_CLIENT_SECRET
+        redirectURI: http://127.0.0.1:5556/dex/callback
+        # Optional teams whitelist, communicated through the "groups" scope.
+        # If `teams` is omitted, all of the user's Bitbucket teams are returned when the groups scope is present.
+        # If `teams` is provided, this acts as a whitelist - only the user's Bitbucket teams that are in the configured `teams` below will go into the groups claim.  Conversely, if the user is not in any of the configured `teams`, the user will not be authenticated.
+        teams:
+        - my-team
+        # Optional parameter to include team groups.
+        # If enabled, the groups claim of dex id_token will looks like this:
+        # ["my_team", "my_team/administrators", "my_team/members"]
+        includeTeamGroups: true
+    #endregion Bitbucket Cloud
+
+    #region OpenShift
+    - type: openshift
+      name: "example-openshift"
+      id: "example-openshift"
+      config:
+          issuer: ""
+          clientID: ""
+          clientSecret: ""
+          redirectURI: ""
+          groups:
+          - ""
+          insecureCA: false
+          rootCA: ""
+    #endregion OpenShift
+
+    #region Atlassian Crowd
+    - type: atlassian
+      name: "example-atlassian"
+      id: "example-atlassian"
+      config:
+        baseURL: ""
+        clientID: ""
+        clientSecret: ""
+        groups: []
+        preferredUsernameField: ""
+        usernamePrompt: ""
+    #endregion Atlassian Crowd
+
+  staticClients:
+    # Client ID and secret used to identify the client.
+    id: ""
+    idEnv: ""
+    secret: ""
+    secretEnv: ""
+    redirectURIs: []
+    trustedPeers: []
+    public: false
+    name: ""
+    logoURL: ""
+
+  # https://dexidp.io/docs/connectors/local/
+  enablePasswordDB: false
+  staticPasswords:
+    - email: ""
+      hash: ""
+      username: "admin"
+      userID: ""

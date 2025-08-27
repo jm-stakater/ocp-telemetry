@@ -1,0 +1,38 @@
+apiVersion: loki.grafana.com/v1
+kind: LokiStack
+metadata:
+  name: loki
+  namespace: {{ include "mychart.namespace" . }}
+  labels:
+  {{ include "mychart.labels" . }}
+spec:
+  size: {{ .Values.app.size | default "1x.small" }}
+  storage:
+    secret:
+      name: loki-secret
+      type: s3
+    schemas:
+      - version: v13
+        effectiveDate: "2024-10-25"
+    tls:
+      caName: openshift-service-ca.crt
+  #storageClassName: openshift-storage.noobaa.io
+  storageClassName: {{ .Values.app.storageClass | default "thin-csi" }}
+  tenants:
+    mode: "openshift-logging"
+  limits:
+    global:
+      ingestion:
+        ingestionRate: 52428800
+        ingestionBurstSize: 104857600
+        maxLabelNameLength: 1024
+        maxLabelValueLength: 4096
+        maxLabelNamesPerSeries: 50
+        maxLineSize: 262144
+      queries:
+        maxEntriesLimitPerQuery: 50000
+        maxChunksPerQuery: 5000000
+        maxQuerySeries: 5000
+        queryTimeout: 300s
+      retention:
+        days: 7

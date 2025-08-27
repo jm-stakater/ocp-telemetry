@@ -1,0 +1,30 @@
+grafana:
+  name: grafana-instance
+  domain: mlkb012t.stakater.cloud
+  instance:
+    sessionSecret: "R%Jfjsdiojfsd+89cu8UY\/()(Y8'''423HIODFSDFAPÅ+O23U893767&%/()=&FYGV()/&TRGVsafs4d65fas4()/T&(UIGJK)"
+    labels:
+      app: grafana-otel
+  datasources:
+    loki:
+      url: "https://loki-gateway-http.loki-instance.svc:8080"
+    mimir:
+      url: "http://mimir-instance-nginx.mimir-instance.svc"
+    tempo:
+      url: "http://tempo-tempo.tempo-instance.svc:3200"
+  dex:
+    enabled: true
+    issuer: dex-dex-instance
+    client_id: "grafana-otel"
+    client_secret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+resyncPeriod: 0m30s
+tenants:
+  - application
+#  - audit
+#  - infrastructure
+dashboards:
+  enabled: false
+datasources:
+  enabled: true
+folders:
+  enabled: true

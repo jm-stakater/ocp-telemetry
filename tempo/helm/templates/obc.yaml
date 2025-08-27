@@ -1,0 +1,8 @@
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: tempo-bucket
+  {{ include "mychart.labels" . }}
+spec:
+  generateBucketName: tempo-bucket
+  storageClassName: openshift-storage.noobaa.io

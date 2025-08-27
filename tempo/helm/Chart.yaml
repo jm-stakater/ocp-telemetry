@@ -1,0 +1,6 @@
+apiVersion: v2
+name: rh-tempo-instance
+description: A Helm Chart for RedHat Tempo Instance
+type: application
+version: 0.1.26
+appVersion: "2.7.1"

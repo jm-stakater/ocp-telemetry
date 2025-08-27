@@ -1,0 +1,135 @@
+{{- $grafanaUrl := (printf "https://%s" (include "grafana-instance.domain" .)) -}}
+{{- $grafanaLogin := (printf "%s/login" $grafanaUrl) -}}
+{{- $dex := (printf "https://%s.apps.%s" .Values.grafana.dex.issuer (include "grafana-instance.clusterDomain" .)) }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: grafana-instance
+  namespace: {{ include "grafana-instance.namespace" . }}
+  labels:
+    {{- toYaml .Values.grafana.instance.labels | nindent 4 }}
+    {{- include "grafana-instance.labels" . | nindent 4 }}
+spec:
+  serviceAccount:
+    metadata:
+      annotations:
+        serviceaccounts.openshift.io/oauth-redirectreference.primary: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"grafana-instance-route"}}'
+  route:
+    spec:
+      port:
+        targetPort: grafana-http
+      tls:
+        termination: edge
+      to:
+        kind: Service
+        name: grafana-instance-service
+        weight: 100
+      wildcardPolicy: None
+  deployment:
+    spec:
+      template:
+        spec:
+          volumes:
+            - name: grafana-tls
+              secret:
+                defaultMode: 420
+                secretName: grafana-tls
+            - name: grafana-proxy
+              secret:
+                secretName: grafana-proxy
+                optional: true
+            - name: ocp-injected-certs
+              configMap:
+                name: ocp-injected-certs
+                items:
+                - key: ca-bundle.crt
+                  path: ca-certificates.crt
+            {{- include "grafana-instance.provision-volumes" . | nindent 12 }}
+
+          containers:
+            - name: grafana
+              env:
+              - name: GF_USERS_ALLOW_ORG_CREATE
+                value: "true"
+              volumeMounts:
+                - mountPath: /etc/tls/private
+                  name: grafana-tls
+                  readOnly: false
+                - mountPath: /etc/proxy/secrets
+                  name: grafana-proxy
+                  readOnly: false
+                - mountPath: /etc/proxy/certs
+                  name: ocp-injected-certs
+                  readOnly: false
+                - mountPath: /etc/ssl/certs/
+                  name: ocp-injected-certs
+                  readOnly: false
+                {{- include "grafana-instance.provision-volumemounts" . | nindent 16 }}
+
+  service:
+    metadata:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: grafana-tls
+    spec:
+      ports:
+        - name: grafana-http
+          port: 3000
+          protocol: TCP
+          targetPort: grafana-http
+  client:
+    preferIngress: False
+  config:
+    log:
+      mode: "console"
+      level: "debug"
+    log.console:
+      format: json
+    auth:
+      disable_login_form: "False"
+      disable_signout_menu: "False"
+    auth.basic:
+      enabled: "True"
+    auth.anonymous:
+      enabled: "False"
+    auth.generic_oauth:
+      enabled: "True"
+      name: Login with Dex
+      allow_sign_up: "True"
+      auto_login: "True"
+      client_id: {{ .Values.grafana.dex.client_id }}
+      client_secret: {{ .Values.grafana.dex.client_secret }}
+      scopes: openid email profile groups offline_access
+      allow_assign_grafana_admin: "True"
+      use_refresh_token: "True"
+      email_attribute_path: email
+      login_attribute_path: preferred_username
+      name_attribute_path: full_name
+      auth_url: {{ printf "%s/dex/auth" $dex }}
+      token_url: {{ printf "%s/dex/token" $dex }}
+      api_url: {{ printf "%s/dex/userinfo" $dex }}
+      role_attribute_path: >-
+        length(groups[?contains(@, 'system:cluster-admins')]) > `0` && 'GrafanaAdmin' ||
+        length(groups[?contains(@, 'clusteradmin')]) > `0` && 'GrafanaAdmin' ||
+        length(groups[?contains(@, 'admin')]) > `0` && 'Admin' ||
+        length(groups[?contains(@, 'owner-group')]) > `0` && 'Admin' ||
+        length(groups[?contains(@, 'edit-group')]) > `0` && 'Editor' ||
+        length(groups[?contains(@, 'view-group')]) > `0` && 'Viewer' ||
+        'None'
+      #org_attribute_path: groups
+      #org_mapping: org_foo:org_foo:Viewer org_bar:org_bar:Editor *:org_baz:Editor
+    users:
+      auto_assign_org_role: Admin
+      auto_assign_org: 'True'
+      allow_org_create: 'True'
+    analytics:
+      reporting_enabled: "False"
+      check_for_updates: "False"
+    explore:
+      enabled: "True"
+    feature_toggles:
+      enable: "traceToMetrics,newTraceViewHeader,correlations"
+    correlations:
+      enabled: "True"
+    server:
+      root_url: {{ $grafanaUrl }}
+      serve_from_sub_path: 'false'

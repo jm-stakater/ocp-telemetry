@@ -1,0 +1,48 @@
+{{- if .Values.datasources.enabled -}}
+{{- range $index, $tenant := .Values.tenants }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: {{ printf "loki-datasource-%s" $tenant }}
+  namespace: {{ include "grafana-instance.namespace" $ }}
+  labels:
+    {{- include "grafana-instance.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: datasource
+    app.kubernetes.io/part-of: {{ include "grafana-instance.namespace" $ }}.{{ include "grafana-instance.name" $ }}
+spec:
+  {{- include "grafana-instance.commonValues" $ | nindent 2 }}
+  valuesFrom:
+    - targetPath: "secureJsonData.httpHeaderValue1"
+      valueFrom:
+        secretKeyRef:
+          name: grafana-sa-auth-token
+          key: token
+  datasource:
+    uid: {{ printf "loki-datasource-%s" $tenant }}
+    name: {{ (printf "Loki %s" $tenant) | title }}
+    type: loki
+    access: proxy
+    url: {{ printf "%s/api/logs/v1/%s/" $.Values.grafana.datasources.loki.url $tenant }}
+    isDefault: false
+    editable: false
+    secureJsonData:
+      httpHeaderValue1: 'Bearer ${token}'
+      httpHeaderValue2: {{ $tenant | quote }}
+    jsonData:
+      httpHeaderName1: "Authorization"
+      httpHeaderName2: "X-Scope-OrgID"
+      tlsSkipVerify: true
+      timeInterval: "5s"
+      maxLines: 1000
+      manageAlerts: false
+      alertmanager_uid: ""
+      derivedFields:
+        - datasourceUid: {{ printf "tempo-datasource-%s" $tenant }}
+          matcherRegex: "trace_id"
+          matcherType: label
+          name: trace_id
+          url: "${__value.raw}"
+          urlDisplayLabel: "View Trace: ${__value.raw}"
+---
+{{- end }}
+{{- end }}

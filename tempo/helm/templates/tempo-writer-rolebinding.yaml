@@ -1,0 +1,16 @@
+{{- if and ((.Values.tempoMonolithic).writer).serviceaccount ((.Values.tempoMonolithic).writer).namespace }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tempostack-traces-write
+  namespace: {{ include "mychart.namespace" . }}
+  {{ include "mychart.labels" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tempostack-traces-write
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.tempoMonolithic.writer.serviceaccount }}
+    namespace: {{ .Values.tempoMonolithic.writer.namespace }}
+{{- end }}

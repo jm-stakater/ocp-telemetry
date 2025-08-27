@@ -1,0 +1,10 @@
+{{- if .Values.folders.enabled -}}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaFolder
+metadata:
+  name: opentelemetry-folder
+  namespace: {{ include "grafana-instance.namespace" . }}
+spec:
+  {{- include "grafana-instance.commonValues" . | nindent 2 }}
+  title: OpenTelemetry
+{{- end }}

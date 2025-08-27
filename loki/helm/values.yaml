@@ -1,0 +1,12 @@
+# todo: what is the correct value?
+app:
+  component: "loki"
+  #storageClass: "thin-csi"
+  storageClass: "ocs-external-storagecluster-cephfs"
+
+  # The size of the Loki stack. This is used to determine the number of
+  # replicas for the Loki components.
+  # Available sizes:
+  # 1x.pico, 1x.extra-small, 1x.small, 1x.medium, 1x.demo
+  # The default size is 1x.small.
+  size: "1x.extra-small"  # Changed from 1x.extra-small for better performance

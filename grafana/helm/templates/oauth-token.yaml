@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ printf "%s-auth-token" (include "grafana-instance.serviceAccountName" .) }}
+  namespace: {{ include "grafana-instance.namespace" . }}
+  labels:
+    {{- include "grafana-instance.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/service-account.name: {{ include "grafana-instance.serviceAccountName" . }}
+type: kubernetes.io/service-account-token
