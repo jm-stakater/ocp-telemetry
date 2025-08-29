@@ -24,7 +24,7 @@ spec:
     name: {{ (printf "mimir %s" $tenant) | title }}
     type: prometheus
     access: proxy
-    url: {{ printf "%s/prometheus" $.Values.grafana.datasources.mimir.url | quote }}
+    url: http://mimir-instance-nginx.mimir-instance.svc/prometheus
     isDefault: false
     editable: false
     secureJsonData:

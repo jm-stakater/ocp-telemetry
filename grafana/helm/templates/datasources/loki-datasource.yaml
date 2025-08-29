@@ -24,7 +24,7 @@ spec:
     name: {{ (printf "Loki %s" $tenant) | title }}
     type: loki
     access: proxy
-    url: {{ printf "%s/api/logs/v1/%s/" $.Values.grafana.datasources.loki.url $tenant }}
+    url: {{ printf "https://loki-gateway-http.loki-instance.svc:8080/api/logs/v1/%s/" $tenant }}
     isDefault: false
     editable: false
     secureJsonData:

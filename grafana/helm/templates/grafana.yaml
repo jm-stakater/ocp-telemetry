@@ -186,7 +186,7 @@ spec:
       # 1. Extract the FULL group name. It must return an array!!
       #    This expects rolenames to be in format '<tenant>-<role>-group-<hash>' or contain 'admin'.
       org_attribute_path: >-
-        (groups[?contains(@, 'admin') || (groups[?contains(@, '-owner-group-') || contains(@, '-edit-group-') || contains(@, '-view-group-')])
+        (groups[?contains(@, 'admin') || contains(@, '-owner-group-') || contains(@, '-edit-group-') || contains(@, '-view-group-')])
 
       # 2. SOURCE the org_mapping from a file that the sidecar manages.
       #    The operator will watch this and trigger restarts on change.

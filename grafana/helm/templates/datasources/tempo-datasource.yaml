@@ -24,7 +24,7 @@ spec:
     name: {{ (printf "tempo %s" $tenant) | title }}
     type: tempo
     access: proxy
-    url: {{ printf "%s" $.Values.grafana.datasources.tempo.url | quote }}
+    url: http://tempo-tempo.tempo-instance.svc:3200
     isDefault: false
     editable: false
     secureJsonData:
