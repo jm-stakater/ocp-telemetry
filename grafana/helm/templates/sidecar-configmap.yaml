@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sidecar-configmap
+  namespace: {{ include "grafana-instance.namespace" . }}
+  labels:
+    {{- include "grafana-instance.labels" . | nindent 4 }}
+data:
+  sidecar.py: |-
+    {{- .Files.Get "files/sidecar.py" | nindent 4 }}

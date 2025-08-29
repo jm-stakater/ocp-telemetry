@@ -1,5 +1,4 @@
 {{- $grafanaUrl := (printf "https://%s" (include "grafana-instance.domain" .)) -}}
-{{- $grafanaLogin := (printf "%s/login" $grafanaUrl) -}}
 {{- $dex := (printf "https://%s.apps.%s" .Values.grafana.dex.issuer (include "grafana-instance.clusterDomain" .)) }}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: Grafana
@@ -44,6 +43,21 @@ spec:
                 items:
                 - key: ca-bundle.crt
                   path: ca-certificates.crt
+            - name: shared-data
+              emptyDir: {}
+            - name: sidecar-script
+              configMap:
+                name: sidecar-configmap
+                defaultMode: 0644
+                items:
+                - key: sidecar.py
+                  path: sidecar.py
+            #- name: provision-orgs
+            #  configMap:
+            #    name: {{ printf "%s-provision-orgs" (include "grafana-instance.fullname" .) }}
+            #    items:
+            #    - key: orgs.yaml
+            #      path: orgs.yaml
             {{- include "grafana-instance.provision-volumes" . | nindent 12 }}
 
           containers:
@@ -51,20 +65,74 @@ spec:
               env:
               - name: GF_USERS_ALLOW_ORG_CREATE
                 value: "true"
+              - name: CONFIGMAP_NAME
+                value: {{ printf "%s-oauth-mappings" (include "grafana-instance.name" .) }}
+              readinessProbe:
+                httpGet:
+                  # Since it's in the same pod, we use localhost.
+                  path: /ready
+                  port: 8080 # The port your sidecar listens on.
+                initialDelaySeconds: 30 
+                periodSeconds: 3
+              livenessProbe:
+                httpGet:
+                  path: /ready
+                  port: 8080
+                initialDelaySeconds: 10
+                periodSeconds: 3
               volumeMounts:
                 - mountPath: /etc/tls/private
                   name: grafana-tls
-                  readOnly: false
+                  readOnly: true
                 - mountPath: /etc/proxy/secrets
                   name: grafana-proxy
-                  readOnly: false
-                - mountPath: /etc/proxy/certs
-                  name: ocp-injected-certs
-                  readOnly: false
+                  readOnly: true
                 - mountPath: /etc/ssl/certs/
                   name: ocp-injected-certs
-                  readOnly: false
+                  readOnly: true
+                - name: shared-data
+                  mountPath: /data
                 {{- include "grafana-instance.provision-volumemounts" . | nindent 16 }}
+            - name: grafana-org-sidecar
+              image: txcswe/stakater:grafana-org-sidecar-latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: CONFIGMAP_NAME
+                  value: {{ printf "%s-oauth-mappings" (include "grafana-instance.name" .) }}
+                - name: GRAFANA_URL
+                  value: "http://localhost:3000"
+                - name: SIDECAR_PORT
+                  value: "8080"
+                - name: GF_SECURITY_ADMIN_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-instance-admin-credentials
+                      key: GF_SECURITY_ADMIN_USER
+                - name: GF_SECURITY_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-instance-admin-credentials
+                      key: GF_SECURITY_ADMIN_PASSWORD
+              volumeMounts:
+                - mountPath: /app
+                  name: sidecar-script
+                  readOnly: true
+                - name: shared-data
+                  mountPath: /data
+              ports:
+                - name: http-ready
+                  containerPort: 8080
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
 
   service:
     metadata:
@@ -80,56 +148,75 @@ spec:
     preferIngress: False
   config:
     log:
-      mode: "console"
-      level: "debug"
+      mode: 'console'
+      level: 'debug'
     log.console:
       format: json
     auth:
-      disable_login_form: "False"
-      disable_signout_menu: "False"
+      disable_login_form: 'False'
+      disable_signout_menu: 'False'
     auth.basic:
-      enabled: "True"
+      enabled: 'True'
     auth.anonymous:
-      enabled: "False"
+      enabled: 'False'
     auth.generic_oauth:
-      enabled: "True"
-      name: Login with Dex
-      allow_sign_up: "True"
-      auto_login: "True"
+      enabled: 'True'
+      allow_sign_up: 'True'
+      auto_login: 'True'
+      name: OpenShift
       client_id: {{ .Values.grafana.dex.client_id }}
       client_secret: {{ .Values.grafana.dex.client_secret }}
       scopes: openid email profile groups offline_access
-      allow_assign_grafana_admin: "True"
-      use_refresh_token: "True"
+      allow_assign_grafana_admin: 'True'
+      use_refresh_token: 'True'
       email_attribute_path: email
       login_attribute_path: preferred_username
       name_attribute_path: full_name
       auth_url: {{ printf "%s/dex/auth" $dex }}
       token_url: {{ printf "%s/dex/token" $dex }}
       api_url: {{ printf "%s/dex/userinfo" $dex }}
-      role_attribute_path: >-
-        length(groups[?contains(@, 'system:cluster-admins')]) > `0` && 'GrafanaAdmin' ||
-        length(groups[?contains(@, 'clusteradmin')]) > `0` && 'GrafanaAdmin' ||
-        length(groups[?contains(@, 'admin')]) > `0` && 'Admin' ||
-        length(groups[?contains(@, 'owner-group')]) > `0` && 'Admin' ||
-        length(groups[?contains(@, 'edit-group')]) > `0` && 'Editor' ||
-        length(groups[?contains(@, 'view-group')]) > `0` && 'Viewer' ||
-        'None'
-      #org_attribute_path: groups
-      #org_mapping: org_foo:org_foo:Viewer org_bar:org_bar:Editor *:org_baz:Editor
+
+      # Ensure users are auto-added to orgs
+      role_attribute_strict: 'True'
+      auto_assign_org: 'True'
+      #auto_assign_org_role: None
+
+      # The crucial part
+
+      # 1. Extract the FULL group name. It must return an array!!
+      #    This expects rolenames to be in format '<tenant>-<role>-group-<hash>' or contain 'admin'.
+      org_attribute_path: >-
+        (groups[?contains(@, 'admin') || (groups[?contains(@, '-owner-group-') || contains(@, '-edit-group-') || contains(@, '-view-group-')])
+
+      # 2. SOURCE the org_mapping from a file that the sidecar manages.
+      #    The operator will watch this and trigger restarts on change.
+      #    The role defined here can be overridden by the `role_attribute_path` setting.
+      #    List of comma- or space-separated <ExternalOrgName>:<OrgIdOrName>:<Role> mappings.
+      #    Value can be * meaning “All users”.
+      org_mapping: $__file{/data/org_mapping}
+
+      # 3. Map the role from the group name.
+      #    Role is optional and can have the following values: None, Viewer, Editor or Admin.
+      #    Optional
+      #role_attribute_path: >-
+      #  length(groups[?contains(@, 'system:cluster-admins')]) > `0` && 'GrafanaAdmin' ||
+      #  length(groups[?contains(@, 'clusteradmin')]) > `0` && 'GrafanaAdmin' ||
+      #  length(groups[?contains(@, 'admin')]) > `0` && 'Admin' ||
+      #  'None'
+
     users:
       auto_assign_org_role: Admin
       auto_assign_org: 'True'
       allow_org_create: 'True'
     analytics:
-      reporting_enabled: "False"
-      check_for_updates: "False"
+      reporting_enabled: 'False'
+      check_for_updates: 'False'
     explore:
-      enabled: "True"
+      enabled: 'True'
     feature_toggles:
       enable: "traceToMetrics,newTraceViewHeader,correlations"
     correlations:
-      enabled: "True"
+      enabled: 'True'
     server:
       root_url: {{ $grafanaUrl }}
       serve_from_sub_path: 'false'

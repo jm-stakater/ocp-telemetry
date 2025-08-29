@@ -19,9 +19,7 @@ grafana:
     client_secret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 resyncPeriod: 0m30s
 tenants:
-  - application
-#  - audit
-#  - infrastructure
+  - abc123
 dashboards:
   enabled: false
 datasources:

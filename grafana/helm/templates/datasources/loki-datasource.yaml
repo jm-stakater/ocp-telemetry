@@ -1,3 +1,5 @@
+{{/* @TODO - Convert to data source configuration file */}}
+{{/* @SEE https://grafana.com/docs/grafana/latest/administration/provisioning/#example-data-source-configuration-file */}}
 {{- if .Values.datasources.enabled -}}
 {{- range $index, $tenant := .Values.tenants }}
 apiVersion: grafana.integreatly.org/v1beta1
@@ -15,7 +17,7 @@ spec:
     - targetPath: "secureJsonData.httpHeaderValue1"
       valueFrom:
         secretKeyRef:
-          name: grafana-sa-auth-token
+          name: {{ printf "%s-auth-token" (include "grafana-instance.serviceAccountName" $) | quote }}
           key: token
   datasource:
     uid: {{ printf "loki-datasource-%s" $tenant }}

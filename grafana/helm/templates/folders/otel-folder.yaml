@@ -1,3 +1,5 @@
+{{/* @TODO - Convert to folder configuration file */}}
+{{/* @SEE https://grafana.com/docs/grafana/latest/administration/provisioning/#example-data-source-configuration-file */}}
 {{- if .Values.folders.enabled -}}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaFolder

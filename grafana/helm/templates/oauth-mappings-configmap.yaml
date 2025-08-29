@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # This name must match what the sidecar is looking for
+  name: {{ printf "%s-oauth-mappings" (include "grafana-instance.name" .) }}
+  # This MUST be the namespace where your Grafana is running
+  namespace: {{ include "grafana-instance.namespace" . }}
+data:
+  # The sidecar will populate this value. It's okay to start it empty.
+  org_mapping: ""
