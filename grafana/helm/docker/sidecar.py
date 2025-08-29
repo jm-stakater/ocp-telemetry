@@ -264,34 +264,39 @@ def reconcile_org_mapping_periodically():
     #logging.info("(Mapper) Initial sync is complete, starting reconciliation loop.")
 
     k8s_core_api = client.CoreV1Api()
-    desired_mapping_str = ""
-
-    logging.info("(Mapper) Starting to watch for ConfigMap changes...")
-    w = watch.Watch()
-    stream = w.stream(k8s_core_api.list_namespaced_config_map, MAPPING_CONFIGMAP_NAMESPACE, send_initial_events=False)
-    for event in stream:
+    while True:
         try:
-            if event['object']['metadata']['name'] != MAPPING_CONFIGMAP_NAME:
-                continue
+            logging.info("(Mapper) Starting periodic reconciliation of org mappings...")
 
-            if event['type'] == "ADDED":
-                continue
-
-            if event['type'] == "DELETED":
-                reconcile_grafana()
-
-            logging.info("(Mapper) ConfigMap have been changed, re-evaluating org_mapping...")
             desired_mapping_str = org_mapping()
-            current_mapping_str = event['object']['spec']['org_mapping']
 
-            # If they differ, reconcile grafana
+            # 3. Get the current mapping from the ConfigMap
+            cm = k8s_core_api.read_namespaced_config_map(MAPPING_CONFIGMAP_NAME, MAPPING_CONFIGMAP_NAMESPACE)
+            current_mapping_str = cm.data.get("org_mapping", "")
+
+            # 4. If they differ, patch the ConfigMap
             if desired_mapping_str != current_mapping_str:
-                logging.info("(Mapper) Reconciling...")
+                logging.info(f"(Mapper) org_mapping has changed. Patching ConfigMap with: '{desired_mapping_str}'")
+
+                body = {"data": {"org_mapping": desired_mapping_str}}
+                k8s_core_api.patch_namespaced_config_map(
+                    name=MAPPING_CONFIGMAP_NAME, namespace=MAPPING_CONFIGMAP_NAMESPACE, body=body
+                )
+                logging.info("(Mapper) ConfigMap patched successfully.")
                 reconcile_grafana()
             else:
-                logging.info("(Mapper) No reconciliation needed.")
+                logging.info("(Mapper) No changes to org_mapping needed.")
+
+        except client.ApiException as e:
+            # Check for 404 on the ConfigMap specifically
+            if e.status == 404 and "configmaps" in str(e.body):
+                    logging.error(f"(Mapper) CRITICAL: The ConfigMap '{MAPPING_CONFIGMAP_NAME}' was not found in namespace '{MAPPING_CONFIGMAP_NAMESPACE}'. Please create it.")
+            else:
+                logging.error(f"(Mapper) Kubernetes API error during reconciliation: {e}")
         except Exception as e:
             logging.error(f"(Mapper) An unexpected error occurred: {e}")
+
+        time.sleep(RECONCILE_INTERVAL_SECONDS)
 
 # --- Main Orchestrator ---
 def main():
